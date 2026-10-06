@@ -28,11 +28,13 @@ sigma_0 = 0;
 sigma_cu = 5.8e7;
 
 % initialize V
-V = zeros(size(X));
+% V = zeros(size(X));
 
 % implement boundary conditions to create the 100 V/m electric field
-V(:, end) = 100;    % upper boundary in z
-V(:, 1) = 0;        % lower boundary in z
+% convention: V(x, z), will be transposed when plotted
+% V(:, end) = 100;    % upper boundary in z
+V = repmat(linspace(0, 100, size(Z,2)), size(Z,1), 1);
+% V(:, 1) = 0;        % lower boundary in z
 
 
 % --- build field mill plates ---
@@ -43,15 +45,19 @@ V(:, 1) = 0;        % lower boundary in z
 % is 24 grid cells tall in z
 
 % grounded shutter (initial position)
-V(150:250,120:124) = 10;
+V(150:250,120:124) = 0;
+V(150:250,114:119) = 0; % shadow (shielding the sense plate)
 
 % sense plates 
 % (these are 100V right now to visualize where they are in the space)
-V(150:245,108:112) = 100;
-V(255:350,108:112) = 100;
+V(150:245,109:113) = 100;
+V(255:350,109:113) = 100;
+
+% d
+V(150:350,106:108) = 0;
 
 % grounded ground plate
-V(150:350,100:104) = 10;
+V(150:350,101:105) = 0;
 
 % -------------------------------
 
@@ -63,16 +69,35 @@ V(150:350,100:104) = 10;
 %% ========================================================================
 % MAIN SIMULATION LOOP
 
-%scale variable to make it more simple
-scale = ((dx*dz)^2)/(2*((dx^2)+(dz^2)));
+%scale variable term (handles denominator of full update equation)
+% scale = ((dx*dz)^2)/(2*((dx^2)+(dz^2)));
+
+scale = 1/(2*(dz/dx) + 2*(dx/dz));
+
+% tic
+% %iterate (solve) phi equation
+% for ii = 1:1000
+%     V(2:end-1, 2:end-1) = scale*(((V(3:end, 2:end-1) + ...
+%         V(1:end-2, 2:end-1))/(dx^2)) + ...
+%         ((V(2:end-1, 3:end) + V(2:end-1, 1:end-2))/(dz^2)));
+% 
+%     % reinforce grounded plate conditions
+%     V(150:250,120:124) = 10; % shutter
+%     V(150:350,100:104) = 10; % big ground plate
+% end
+% toc
 
 tic
 %iterate (solve) phi equation
 for ii = 1:1000
-    V(2:end-1, 2:end-1) = scale*(((V(3:end, 2:end-1) + ...
-        V(1:end-2, 2:end-1))/(dx^2)) + ...
-        ((V(2:end-1, 3:end) + V(2:end-1, 1:end-2))/(dz^2)));
+    % V(2:end-1, 2:end-1) = scale*(((V(3:end, 2:end-1) + ...
+    %     V(1:end-2, 2:end-1))/(dx^2)) + ...
+    %     ((V(2:end-1, 3:end) + V(2:end-1, 1:end-2))/(dz^2)));
 
+    V(2:end-1, 2:end-1) = scale*( ...
+        (dz/dx)*(V(1:end-2, 2:end-1) - V(3:end, 2:end-1)) + ...
+        (dx/dz)*(V(2:end-1, 1:end-2) - V(2:end-1, 3:end)) );
+    
     % reinforce grounded plate conditions
     V(150:250,120:124) = 10; % shutter
     V(150:350,100:104) = 10; % big ground plate
@@ -81,38 +106,60 @@ toc
 
 %% ========================================================================
 % Plotting
-
-% --- auburn colormap generation ---
-% function from TRACE repo:
-
-% RGB values from [0:255]
-orange = [232,97,0];
-blue   = [11,35,65];
-white  = [255,255,255];
-
-%keep as an even number
-length_colormap = 100;
-
-% make blue to white
-auburn_color_map = zeros(length_colormap,3);
-auburn_color_map(1:length_colormap/2,1) = (interp1([1,length_colormap/2], [blue(1) white(1)], 1:length_colormap/2))';
-auburn_color_map(1:length_colormap/2,2) = (interp1([1,length_colormap/2], [blue(2) white(2)], 1:length_colormap/2))';
-auburn_color_map(1:length_colormap/2,3) = (interp1([1,length_colormap/2], [blue(3) white(3)], 1:length_colormap/2))';
-
-% make white to orange
-auburn_color_map(length_colormap/2+1:length_colormap,1) = (interp1([length_colormap/2+1,length_colormap], [white(1) orange(1)], length_colormap/2+1:length_colormap))';
-auburn_color_map(length_colormap/2+1:length_colormap,2) = (interp1([length_colormap/2+1,length_colormap], [white(2) orange(2)], length_colormap/2+1:length_colormap))';
-auburn_color_map(length_colormap/2+1:length_colormap,3) = (interp1([length_colormap/2+1,length_colormap], [white(3) orange(3)], length_colormap/2+1:length_colormap))';
-
-% RGB values normalized from [0:1]
-auburn_color_map = auburn_color_map/255;
-
-% ----------------------------------
+auburn_color_map = Generate_Auburn_Colormap_v0();
 
 % Figure 1
 figure;
 imagesc(x, z, V'); 
-colormap(auburn_color_map); colorbar;
+colormap(auburn_color_map); 
+colorbar;
 axis xy;
 title('Voltage as a Function of the 2-D Space');
 xlabel('Length (m)'); ylabel('Height (m)');
+
+%% ========================================================================
+% Functions
+
+% --- auburn colormap generation ---
+% function from TRACE repo:
+
+function auburn_color_map = Generate_Auburn_Colormap_v0()
+% This function generates the Auburn colors colormap where
+% blue is low value and orange is high value. RGB values
+% according to https://ocm.auburn.edu/brand-center/_assets/pdf/au-colorpalette-primary-supporting.pdf
+
+% INPUTS: None.
+
+% OUTPUTS: 100 by 3 array of Auburn blue to orange
+
+% DEPENDENCIES: none
+
+% Author: Clint Snider
+% last edited: 02/05/2025
+
+% DESIRED UPDATES: Maybe make length 256.
+
+    % RGB values from [0:255]
+    orange = [232,97,0];
+    blue   = [11,35,65];
+    white  = [255,255,255];
+    
+    %keep as an even number
+    length_colormap = 100;
+    
+    % make blue to white
+    auburn_color_map = zeros(length_colormap,3);
+    auburn_color_map(1:length_colormap/2,1) = (interp1([1,length_colormap/2], [blue(1) white(1)], 1:length_colormap/2))';
+    auburn_color_map(1:length_colormap/2,2) = (interp1([1,length_colormap/2], [blue(2) white(2)], 1:length_colormap/2))';
+    auburn_color_map(1:length_colormap/2,3) = (interp1([1,length_colormap/2], [blue(3) white(3)], 1:length_colormap/2))';
+    
+    % make white to orange
+    auburn_color_map(length_colormap/2+1:length_colormap,1) = (interp1([length_colormap/2+1,length_colormap], [white(1) orange(1)], length_colormap/2+1:length_colormap))';
+    auburn_color_map(length_colormap/2+1:length_colormap,2) = (interp1([length_colormap/2+1,length_colormap], [white(2) orange(2)], length_colormap/2+1:length_colormap))';
+    auburn_color_map(length_colormap/2+1:length_colormap,3) = (interp1([length_colormap/2+1,length_colormap], [white(3) orange(3)], length_colormap/2+1:length_colormap))';
+    
+    % RGB values normalized from [0:1]
+    auburn_color_map = auburn_color_map/255;
+end
+
+% ----------------------------------
