@@ -29,8 +29,13 @@ eps_0 = 8.854e-12; % same for copper since its eps_r = 1
 sigma_0 = 0;
 sigma_cu = 5.8e7;
 
-% initialize V
-% V = zeros(size(X));
+% Transimpedance amplifier feedback resistor (assuming 100 kOhm)
+R_f = 1e5;
+
+% shutter plate constant velocity: v = dx / dt
+% assuming a physical shutter speed of 1 m/s (dt = dx / v = 1ms)
+v_shutter = 1.0; 
+dt = dx / v_shutter;
 
 % implement boundary conditions to create the 100 V/m electric field
 % convention: V(x, z); will be transposed when plotted
@@ -40,77 +45,99 @@ sigma_cu = 5.8e7;
 V = repmat(linspace(0, 2, size(Z,2)), size(Z,1), 1);
 
 % old:
+% initialize V
+% V = zeros(size(X));
 % V(:, end) = 100;    % upper boundary in z
 % V(:, 1) = 0;        % lower boundary in z
 
 
 % --- build field mill plates ---
-% all plates will be 0.5mm thick (5 grid cells in z)
-% d_shutter will be twice d shown on figure 1 of the instructions pdf
-% d is assumed to be 0.3mm (3 grid cells in z)
-% thus, d_shutter = 0.6mm (6 grid cells in z), and the total plate assembly
-% is 24 grid cells tall in z
+% -all plates will be 0.5mm thick (5 grid cells in z)
+% -d_shutter, labeled d on figure 1 of the instructions pdf, will be twice
+%  the distance between the sense plates and the big ground plate (d_lower)
+% -d_lower is assumed to be 0.3mm (3 grid cells in z)
+%   -thus, d_shutter = 0.6mm (6 grid cells in z), and the total plate 
+%    assembly is 24 grid cells tall in z
+
+% define plate locations/dimensions as index ranges
+z_shutter = 120:124;
+z_sense   = 109:113;
+z_ground  = 101:105;
+
+x_sense1  = 150:245; % sense plate 1 (left)
+x_sense2  = 255:350; % sense plate 2 (right)
+x_ground  = 150:350; % bottom ground plate
+
+% now, enforce the grounded potential of each plate
 
 % grounded shutter (initial position)
-V(150:250,120:124) = 0;
-% V(150:250,114:119) = 0; % shadow (shielding the sense plate)
+V(150:250, z_shutter) = 0;
 
-% sense plates 
-% (these still need to be held at zero)
-V(150:245,109:113) = 0;
-V(255:350,109:113) = 0;
+% sense plates (these still need to be held at zero)
+V(x_sense1, z_sense)  = 0;
+V(x_sense2, z_sense)  = 0;
 
-% d
-% V(150:350,106:108) = 0;
+% for reference: d is at z indices 106:108
 
 % grounded ground plate
-V(150:350,101:105) = 0;
-
+V(x_ground, z_ground) = 0;
 % -------------------------------
 
 %% ========================================================================
 % MAIN SIMULATION LOOP
 
-%scale variable term (handles denominator of full update equation)
+% scale factor term of full update equation
 scale_nonuniform = ((dx*dz)^2)/(2*((dx^2)+(dz^2)));
-scale = 1/(2*(dz/dx) + 2*(dx/dz));
+% scale = 1/(2*(dz/dx) + 2*(dx/dz));
 
 % --- simulate shutter motion ---
+% motion setup
+num_timesteps = 101;
+Q_sense1 = zeros(1, num_timesteps);
+Q_sense2 = zeros(1, num_timesteps);
 
 % Figure 1
-figure;
-imagesc(x, z, V'); 
+fig1 = figure;
 colormap(auburn_color_map); 
-colorbar;
-axis xy;
-title('Voltage as a Function of the 2-D Space');
-xlabel('Length (m)'); ylabel('Height (m)');
+% imagesc(x, z, V'); 
+% colorbar;
+% axis xy;
+% title('Voltage as a Function of the 2-D Space');
+% xlabel('Length (m)'); ylabel('Height (m)');
 
 tic
-for ii = 1:101
+for ii = 1:num_timesteps
+    % clear previous shutter position
+    if ii > 1
+        prev_x_shutter = (150 + ii - 2) : (250 + ii - 2);
+        % set V back to initial value at those grid cells
+        V(prev_x_shutter, z_shutter) = repmat(z(z_shutter) * 100, ...
+            length(prev_x_shutter), 1);
+    end
 
     % scoot shutter to the right in x by 1 each iteration
     % (equates to adding ii-1 to the indices)
     % the -1 allows for the initial position to be used first
-    V(150+(ii-1):250+(ii-1),120:124) = 0;
+    curr_x_shutter = (150 + ii - 1) : (250 + ii - 1);
+    V(curr_x_shutter, z_shutter) = 0;
 
     % covering old indices with a different voltage for testing motion
     V(150+(ii-2),120:124) = 1.2; 
 
     % tic
-    % solve update equation (non-uniform scale)
+    % solve Laplace update equation (non-uniform scale)
     for jj = 1:1000
-        V(2:end-1, 2:end-1) = scale_nonuniform*(((V(3:end, 2:end-1) + ...
-            V(1:end-2, 2:end-1))/(dx^2)) + ...
-            ((V(2:end-1, 3:end) + V(2:end-1, 1:end-2))/(dz^2)));
+        V(2:end-1, 2:end-1) = scale_nonuniform * ( ...
+            (V(3:end, 2:end-1) + V(1:end-2, 2:end-1)) / (dx^2) + ...
+            (V(2:end-1, 3:end) + V(2:end-1, 1:end-2)) / (dz^2) );
 
-        % reinforce grounded plate conditions
-        % V(150:250,120:124) = 0; % shutter
-        V(150+(ii-1):250+(ii-1),120:124) = 0;
-        V(150:350,100:104) = 0; % big ground plate
-        % sense plates
-        V(150:245,109:113) = 0;
-        V(255:350,109:113) = 0;
+        % reinforce grounded plate conditions and space boundary conditions
+        V(curr_x_shutter, z_shutter) = 0;
+        V(x_sense1, z_sense)         = 0;
+        V(x_sense2, z_sense)         = 0;
+        V(x_ground, z_ground)        = 0;
+        V(:, 1)                      = 0;   % bottom space boundary
+        V(:, end)                    = 2; % top space boundary
     end
     % toc
 
@@ -134,24 +161,103 @@ for ii = 1:101
     % end
     % toc
 
+    % --- calculate charge (Q) on sense plates ---
+    % E_z at top surface of sense plate
+    z_above = 114; % and z = 113 is the top of the sense plates
+    E_z_sense1 = (V(x_sense1, z_above) - V(x_sense1, 113)) / dz;
+    E_z_sense2 = (V(x_sense2, z_above) - V(x_sense2, 113)) / dz;
+
+    % surface charge density rho_s = eps_0 * E_z
+    rho_s1 = eps_0 * E_z_sense1;
+    rho_s2 = eps_0 * E_z_sense2;
+
+    % total induced charge Q (assuming square plates)
+    L_y = length(x_sense1) * dx; % ?
+    Q_sense1(ii) = sum(rho_s1) * dx * L_y;
+    Q_sense2(ii) = sum(rho_s2) * dx * L_y;
+    % --------------------------------------------
+    
+
+    % update animation plot
     imagesc(x, z, V');
+    colormap(auburn_color_map);
+    colorbar;
+    axis xy;
+    title(sprintf('Voltage Distribution (Step %d / %d)', ...
+                                             ii, num_timesteps));
+    xlabel('Length (m)'); ylabel('Height (m)');
     drawnow;
 end
 toc
 % -------------------------------
 
+% assume a length in the y-direction
+% y_len = length(150:245);
+% 
+% % surface area
+% surface_area = y_len^2; % assuming square plates
+% 
+% % surface charge density
+% rho_s = epsilon*((V(:,end)-V(:,end-1))/dz); % TODO
+% 
+% % integrate Q
+% Q = y_len * sum(rho_s(2:end-1,end)) * dx;
+
+%% ========================================================================
+% Transimpedance Amplifier Output
+
+% calculate current: i(t) = dQ / dt
+i_sense1 = [0, diff(Q_sense1) / dt];
+i_sense2 = [0, diff(Q_sense2) / dt];
+
+% output for differential transimpedance configuration
+V_out = -R_f * (i_sense1 - i_sense2);
+
+% build time vector to use in plots
+time = (0:num_timesteps-1) * dt;
+
+
+% capacitance calculations from an old project:
+% Calculate numerical C
+% C_num = Q/V(end, end); % V=1V on upper plate
+% 
+% % Calculate analytical C
+% C_an = (epsilon*surface_area)/z(end);
+% 
+% % calculate percent error
+% percent_error = (abs(C_an-C_num)/C_an)*100;
+
 %% ========================================================================
 % Plotting
-% auburn_color_map = Generate_Auburn_Colormap_v0();
 
 % Figure 2
+% figure;
+% imagesc(x, z, V'); 
+% colormap(auburn_color_map); 
+% colorbar;
+% axis xy;
+% title('Voltage as a Function of the 2-D Space');
+% xlabel('Length (m)'); ylabel('Height (m)');
+
+% Plot Results
 figure;
-imagesc(x, z, V'); 
-colormap(auburn_color_map); 
-colorbar;
-axis xy;
-title('Voltage as a Function of the 2-D Space');
-xlabel('Length (m)'); ylabel('Height (m)');
+subplot(3,1,1);
+plot(time, Q_sense1 * 1e9, 'b', time, Q_sense2 * 1e9, 'r', 'LineWidth', 1.5);
+title('Induced Charge on Sense Plates');
+xlabel('Time (s)'); ylabel('Charge (nC)');
+legend('Sense Plate 1', 'Sense Plate 2'); grid on;
+
+subplot(3,1,2);
+plot(time, i_sense1 * 1e6, 'b', time, i_sense2 * 1e6, 'r', 'LineWidth', 1.5);
+title('Current Flowing to Amplifier Inputs');
+xlabel('Time (s)'); ylabel('Current (\mu A)');
+legend('i_1(t)', 'i_2(t)'); grid on;
+
+subplot(3,1,3);
+plot(time, V_out, 'k', 'LineWidth', 1.5);
+title('Transimpedance Amplifier Output Voltage V_{out}(t)');
+xlabel('Time (s)'); ylabel('Voltage (V)');
+grid on;
 
 %% ========================================================================
 % Functions
