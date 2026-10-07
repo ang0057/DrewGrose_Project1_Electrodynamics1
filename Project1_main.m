@@ -86,8 +86,8 @@ imagesc(x, z, V');
 colormap(auburn_color_map);
 c1 = colorbar; c1.Label.String = '(V/m)'; c1.Label.FontSize = 14;
 axis xy;
-title(sprintf('Voltage Distribution of the Space at t=0s'));
-xlabel('Length (m)'); ylabel('Height (m)');
+title(sprintf('Voltage Distribution of the Space at t=0s'), 'FontSize', 14);
+xlabel('Length (m)', 'FontSize', 12); ylabel('Height (m)', 'FontSize', 12);
 
 %% ========================================================================
 % MAIN SIMULATION LOOP
@@ -184,8 +184,9 @@ for ii = 1:num_timesteps
     c2.Label.FontSize = 14;
     axis xy;
     title(sprintf('Voltage Distribution (Step %d / %d)', ...
-                                             ii, num_timesteps));
-    xlabel('Length (m)'); ylabel('Height (m)');
+                                      ii, num_timesteps), 'FontSize', 14);
+    xlabel('Length (m)', 'FontSize', 12); 
+    ylabel('Height (m)', 'FontSize', 12);
     drawnow;
 end
 % toc
@@ -238,20 +239,21 @@ fprintf('=======================================================\n\n');
 fig3 = figure; % Figure 3
 subplot(3,1,1);
 plot(time, Q_sense1 * 1e9, 'b', time, Q_sense2 * 1e9, 'r', 'LineWidth', 1.5);
-title('Induced Charge on Sense Plates');
-xlabel('Time (s)'); ylabel('Charge (nC)');
+title('Induced Charge on Sense Plates', 'FontSize', 14);
+xlabel('Time (s)', 'FontSize', 12); ylabel('Charge (nC)', 'FontSize', 12);
 legend('Sense Plate 1', 'Sense Plate 2'); grid on;
 
 subplot(3,1,2);
 plot(time, i_sense1 * 1e6, 'b', time, i_sense2 * 1e6, 'r', 'LineWidth', 1.5);
-title('Current Flowing to Amplifier Inputs');
-xlabel('Time (s)'); ylabel('Current (\mu A)');
+title('Current Flowing to Amplifier Inputs', 'FontSize', 14);
+xlabel('Time (s)', 'FontSize', 12); 
+ylabel('Current (\mu A)', 'FontSize', 12);
 legend('i_1(t)', 'i_2(t)'); grid on;
 
 subplot(3,1,3);
 plot(time, V_out, 'k', 'LineWidth', 1.5);
-title('Transimpedance Amplifier Output Voltage V_{out}(t)');
-xlabel('Time (s)'); ylabel('Voltage (V)');
+title('Transimpedance Amplifier Output Voltage V_{out}(t)', 'FontSize', 14);
+xlabel('Time (s)', 'FontSize', 12); ylabel('Voltage (V)', 'FontSize', 12);
 grid on;
 
 %% ========================================================================
