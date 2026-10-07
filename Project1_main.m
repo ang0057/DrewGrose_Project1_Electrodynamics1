@@ -207,7 +207,30 @@ time = (0:num_timesteps-1) * dt;
 %% ========================================================================
 % Comparison of Analytical and Numerical Solutions
 
-% TODO: Compare the differences between the two solutions numerically
+% physical constants and parameters
+E_0 = 100;
+W = length(x_sense1) * dx;
+v = v_shutter;
+
+% analytical V_out calculation: V_out = -2 * R_f * eps_0 * E_0 * W * v
+V_out_analytical = -2 * R_f * eps_0 * E_0 * W * v;
+
+% extract numerical output result at steady-state (timestep index 50)
+V_out_numerical = V_out(50);
+
+% calculate percent difference relative to analytical baseline
+percent_diff = abs(V_out_numerical - ...
+                        V_out_analytical) / abs(V_out_analytical) * 100;
+
+% display comparison results in command window
+fprintf('\n=======================================================\n');
+fprintf('   ELECTRIC FIELD MILL SOLUTION COMPARISON RESULTS\n');
+fprintf('=======================================================\n');
+fprintf('Analytical Output Voltage  : %10.4f uV\n', V_out_analytical * 1e6);
+fprintf('Numerical Output Voltage   : %10.4f uV (at steady-state)\n', V_out_numerical * 1e6);
+fprintf('Absolute Difference        : %10.4f uV\n', abs(V_out_numerical - V_out_analytical) * 1e6);
+fprintf('Percent Difference         : %10.2f %%\n', percent_diff);
+fprintf('=======================================================\n\n');
 
 %% ========================================================================
 % Plotting
@@ -230,9 +253,6 @@ plot(time, V_out, 'k', 'LineWidth', 1.5);
 title('Transimpedance Amplifier Output Voltage V_{out}(t)');
 xlabel('Time (s)'); ylabel('Voltage (V)');
 grid on;
-
-% fig4 = figure; % Figure 4
-% TODO: plot differences in the two solutions
 
 %% ========================================================================
 % Functions
