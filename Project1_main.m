@@ -15,8 +15,6 @@ x = 0:dx:0.5; % 0.5m
 dz = 0.0001; % dz = 0.1mm (finer since E varies in z)
 z = 0:dz:0.02; % 0.02m or 20mm
 
-% z << x allows us to ignore fringing fields
-
 % meshgrid
 [Z, X] = meshgrid(z, x);
 % ndgrid
