@@ -171,7 +171,7 @@ for ii = 1:num_timesteps
     rho_s2 = eps_0 * E_z_sense2;
 
     % total induced charge Q (assuming square plates)
-    L_y = length(x_sense1) * dx; % ?
+    L_y = length(x_sense1) * dx;
     Q_sense1(ii) = sum(rho_s1) * dx * L_y;
     Q_sense2(ii) = sum(rho_s2) * dx * L_y;
     % --------------------------------------------
